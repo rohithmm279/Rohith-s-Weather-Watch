@@ -71,6 +71,7 @@ const el = {
   regName:        $('regName'),
   regEmail:       $('regEmail'),
   regCity:        $('regCity'),
+  alertLocationBtn: $('alertLocationBtn'),
   saveAlertBtn:   $('saveAlertBtn'),
   sendTestEmailBtn:$('sendTestEmailBtn'),
   deleteUserBtn:  $('deleteUserBtn'),
@@ -620,6 +621,52 @@ el.alertModalBtn.addEventListener('click', openModal);
 el.closeModalBtn.addEventListener('click', closeModal);
 el.alertModal.addEventListener('click', e => { if (e.target === el.alertModal) closeModal(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── Alert modal — Fetch Location for City field ────────────────────────────
+if (el.alertLocationBtn) {
+  el.alertLocationBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+      showModalMsg('Geolocation is not supported by your browser.', 'error');
+      return;
+    }
+    el.alertLocationBtn.classList.add('loading');
+    el.alertLocationBtn.title = 'Detecting location…';
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        try {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          // Use backend weather endpoint to reverse-geocode coordinates to city
+          const res  = await fetch(`${API_BASE}/weather/dashboard?lat=${lat}&lon=${lon}`);
+          const data = await res.json();
+          if (res.ok && data.current) {
+            const city = data.current.name || data.current.city || '';
+            if (city) {
+              el.regCity.value = city;
+              el.regCity.focus();
+              // Also load weather if not already shown
+              if (!currentCity) fetchByCoords(lat, lon);
+            } else {
+              showModalMsg('Could not resolve city from location.', 'error');
+            }
+          } else {
+            showModalMsg(data.error || 'Could not resolve city.', 'error');
+          }
+        } catch (err) {
+          showModalMsg('Location lookup failed. Try again.', 'error');
+        } finally {
+          el.alertLocationBtn.classList.remove('loading');
+          el.alertLocationBtn.title = 'Use my current location to fill city';
+        }
+      },
+      err => {
+        el.alertLocationBtn.classList.remove('loading');
+        el.alertLocationBtn.title = 'Use my current location to fill city';
+        showModalMsg('Location access denied. Please enter city manually.', 'error');
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  });
+}
 
 // ── Delete / Unsubscribe User ──────────────────────────────────────────────────
 if (el.deleteUserBtn) {

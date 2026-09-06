@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WeatherWatch — Real-Time Weather Dashboard</title>
+  <title>Rohith's Weather Watch — Real-Time Weather Dashboard</title>
   <meta name="description" content="Real-time weather dashboard with hourly and 5-day forecasts, cinematic weather environments, and instant Brevo email alerts." />
 
+  <!-- SVG favicon: no white border, blends into browser UI -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='bg' cx='50%25' cy='40%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%231a3a5c'/%3E%3Cstop offset='100%25' stop-color='%23040914'/%3E%3C/radialGradient%3E%3CradialGradient id='sun' cx='40%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' stop-color='%23ffd700'/%3E%3Cstop offset='100%25' stop-color='%23f97316'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='32' fill='url(%23bg)'/%3E%3Ccircle cx='24' cy='26' r='12' fill='url(%23sun)' opacity='.95'/%3E%3Cellipse cx='36' cy='33' rx='16' ry='10' fill='%23213a5e'/%3E%3Cellipse cx='28' cy='36' rx='12' ry='8' fill='%231e3657'/%3E%3Cellipse cx='40' cy='31' rx='13' ry='8' fill='%231a3050'/%3E%3Cpath d='M32 42 L28 54 L34 48 L30 60' stroke='%2300e5ff' stroke-width='2.5' stroke-linecap='round' fill='none'/%3E%3Cline x1='34' y1='44' x2='32' y2='50' stroke='%2300e5ff' stroke-width='1.5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='32' r='31.5' fill='none' stroke='%2322d3ee' stroke-width='1' opacity='.4'/%3E%3C/svg%3E" />
   <link rel="dns-prefetch" href="https://openweathermap.org" />
   <link rel="preconnect" href="https://openweathermap.org" crossorigin />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" />
-  <link rel="stylesheet" href="main.css?v=4" />
+  <link rel="stylesheet" href="main.css?v=5" />
 </head>
 <body>
 
@@ -20,8 +22,8 @@
     <!-- Header -->
     <div class="header-row">
       <div class="brand">
-        <span class="brand-icon">🌤</span>
-        <span class="brand-name">WeatherWatch</span>
+        <img src="assets/logo.jpg" alt="WeatherWatch Logo" class="brand-logo" />
+        <span class="brand-name">Rohith's Weather Watch</span>
       </div>
       <button id="alertModalBtn" class="alert-btn" title="Enable Weather Email Alerts">🔔 Alerts</button>
     </div>
@@ -152,7 +154,10 @@
       <form id="alertForm">
         <input type="text"  id="regName"  placeholder="Your Name" required autocomplete="name" />
         <input type="email" id="regEmail" placeholder="Your Email (e.g. name@example.com)" required autocomplete="email" />
-        <input type="text"  id="regCity"  placeholder="City to Monitor" required autocomplete="address-level2" />
+        <div class="modal-city-row">
+          <input type="text" id="regCity" placeholder="City to Monitor" required autocomplete="address-level2" />
+          <button type="button" id="alertLocationBtn" class="alert-location-btn" title="Use my current location to fill city">📍</button>
+        </div>
 
         <div class="pref-options">
           <label><input type="checkbox" name="pref" value="rain"    checked /> Rain / Heavy Rain</label>
@@ -189,6 +194,6 @@
   </div>
 
   <script src="JS/weatherBackground.js?v=3" defer></script>
-  <script src="JS/main.js?v=4" defer></script>
+  <script src="JS/main.js?v=5" defer></script>
 </body>
 </html>

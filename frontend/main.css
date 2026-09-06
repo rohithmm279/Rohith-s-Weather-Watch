@@ -160,20 +160,32 @@ body {
   gap: 10px;
 }
 
-.brand-icon {
-  font-size: 24px;
-  filter: drop-shadow(0 2px 10px rgba(56, 189, 248, 0.45));
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.55), 0 0 28px rgba(56, 189, 248, 0.20);
+  border: 1.5px solid rgba(56, 189, 248, 0.35);
+  transition: box-shadow var(--trans-mid), transform var(--trans-mid);
+  flex-shrink: 0;
+}
+
+.brand-logo:hover {
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.75), 0 0 40px rgba(56, 189, 248, 0.35);
+  transform: scale(1.06) rotate(5deg);
 }
 
 .brand-name {
-  font-size: 21px;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: -0.4px;
-  background: linear-gradient(135deg, #ffffff 40%, #93c5fd 100%);
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #fde68a 0%, #ffffff 45%, #67e8f9 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+  white-space: nowrap;
 }
 
 .alert-btn {
@@ -1108,6 +1120,62 @@ body {
   -webkit-box-shadow: 0 0 0px 1000px #0b1329 inset !important;
   box-shadow: 0 0 0px 1000px #0b1329 inset !important;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Modal city row with geolocation button */
+.modal-city-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.modal-city-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-location-btn {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18) 0%, rgba(34, 211, 238, 0.12) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: var(--radius-sm);
+  color: var(--accent-cyan);
+  font-size: 16px;
+  width: 42px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--trans-fast),
+    border-color var(--trans-fast),
+    transform var(--trans-fast),
+    box-shadow var(--trans-fast);
+  position: relative;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.alert-location-btn:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.32) 0%, rgba(34, 211, 238, 0.22) 100%);
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.35);
+}
+
+.alert-location-btn:active {
+  transform: scale(0.94);
+}
+
+.alert-location-btn.loading {
+  animation: location-spin 0.9s linear infinite;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+@keyframes location-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .pref-options {
