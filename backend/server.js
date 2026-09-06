@@ -3,8 +3,9 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
-const express = require('express');
-const app     = express();
+const express     = require('express');
+const compression = require('compression');
+const app         = express();
 
 const weatherRoutes = require('./routes/weather');
 const userRoutes    = require('./routes/users');
@@ -20,14 +21,27 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
+// Enable Gzip/Deflate compression for all responses (>1KB)
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  },
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'frontend'), {
   etag: true,
+  maxAge: '7d',
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    } else {
+      // Aggressive caching for static assets: CSS, JS, images, SVG
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
     }
   }
 }));

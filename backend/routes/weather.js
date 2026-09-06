@@ -42,6 +42,8 @@ function handleRouteError(err, res, context) {
 async function handleWeatherRequest(req, res) {
   const { city, lat, lon } = req.query;
 
+  res.setHeader('Cache-Control', 'public, max-age=180, stale-while-revalidate=300');
+
   if (lat !== undefined && lon !== undefined) {
     const parsedLat = parseFloat(lat);
     const parsedLon = parseFloat(lon);
@@ -67,6 +69,45 @@ async function handleWeatherRequest(req, res) {
     return handleRouteError(err, res, `GET /?city=${city}`);
   }
 }
+
+/**
+ * GET /api/weather/ip-location
+ * Fast IP-based geolocation fallback when browser device geolocation is unavailable/denied.
+ */
+router.get('/ip-location', async (req, res) => {
+  try {
+    const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
+    const isPrivate = !clientIp || clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.');
+    const queryUrl = isPrivate ? 'https://ipwho.is/' : `https://ipwho.is/${clientIp}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+
+    const geoRes = await fetch(queryUrl, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!geoRes.ok) throw new Error('IP service unavailable');
+    const geoData = await geoRes.json();
+
+    if (geoData && geoData.success !== false && geoData.latitude && geoData.longitude) {
+      res.setHeader('Cache-Control', 'public, max-age=600');
+      return res.json({
+        success: true,
+        city: geoData.city || 'My Location',
+        lat: geoData.latitude,
+        lon: geoData.longitude,
+        country: geoData.country || '',
+      });
+    }
+
+    throw new Error(geoData.message || 'Could not determine location from IP');
+  } catch (err) {
+    return res.status(502).json({
+      success: false,
+      error: 'Unable to detect location from network IP. Please enter city manually.',
+    });
+  }
+});
 
 router.get('/', handleWeatherRequest);
 router.get('/dashboard', handleWeatherRequest);

@@ -12,11 +12,37 @@
 'use strict';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const API_BASE       = '/api';
-const MAX_HISTORY    = 5;
-const STORAGE_CITY   = 'ww_city';
-const STORAGE_HIST   = 'ww_history';
-const STORAGE_ALERT  = 'ww_alert';   // { name, email, city, prefs }
+const API_BASE               = '/api';
+const MAX_HISTORY            = 5;
+const STORAGE_CITY           = 'ww_city';
+const STORAGE_HIST           = 'ww_history';
+const STORAGE_ALERT          = 'ww_alert';          // { name, email, city, prefs }
+const STORAGE_LAST_DASHBOARD = 'ww_last_dashboard'; // Stale-While-Revalidate dashboard cache
+
+// ── In-memory client cache (0ms instant retrieval) ─────────────────────────────
+const clientCache = new Map();
+const CLIENT_CACHE_TTL = 300_000; // 5 minutes
+
+function getCachedWeather(key) {
+  if (!key) return null;
+  const k = key.toLowerCase().trim();
+  const entry = clientCache.get(k);
+  if (entry && (Date.now() - entry.time < CLIENT_CACHE_TTL)) {
+    return entry.data;
+  }
+  if (entry) clientCache.delete(k);
+  return null;
+}
+
+function setCachedWeather(key, data) {
+  if (!key || !data) return;
+  const k = key.toLowerCase().trim();
+  if (clientCache.size >= 60) {
+    const oldest = clientCache.keys().next().value;
+    if (oldest) clientCache.delete(oldest);
+  }
+  clientCache.set(k, { data, time: Date.now() });
+}
 
 const UV_LABELS  = ['Low','Low','Moderate','Moderate','High','High','High','Very High','Very High','Very High','Very High','Extreme'];
 const WIND_DIRS  = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
@@ -484,17 +510,35 @@ function renderDashboard(data) {
 }
 
 // ── Fetch weather ──────────────────────────────────────────────────────────────
-async function fetchWeather(city) {
+async function fetchWeather(city, { silent = false } = {}) {
   const trimmed = city.trim();
   if (!trimmed) { showError('Please enter a city name.'); return; }
+
+  currentCity = trimmed;
+  clearError();
+
+  // 1. Instant cache check (0ms response)
+  const cached = getCachedWeather(trimmed);
+  if (cached) {
+    renderDashboard(cached);
+    addToHistory(cached.current?.name || trimmed);
+    lsSet(STORAGE_CITY, cached.current?.name || trimmed);
+    lsSet(STORAGE_LAST_DASHBOARD, cached);
+    if (el.regCity && !el.regCity.value) el.regCity.value = cached.current?.name || trimmed;
+
+    // Silently revalidate in background if older than 90 seconds
+    const entry = clientCache.get(trimmed.toLowerCase());
+    if (!entry || (Date.now() - entry.time > 90_000)) {
+      silentlyRevalidateWeather(trimmed);
+    }
+    return;
+  }
 
   // Cancel any in-flight request
   if (abortCtrl) abortCtrl.abort();
   abortCtrl = new AbortController();
 
-  currentCity = trimmed;
-  clearError();
-  showLoader();
+  if (!silent) showLoader(`Fetching weather for ${trimmed}…`);
 
   try {
     const res  = await fetch(`${API_BASE}/weather/dashboard?city=${encodeURIComponent(trimmed)}`, { signal: abortCtrl.signal });
@@ -504,8 +548,11 @@ async function fetchWeather(city) {
 
     hideLoader();
     renderDashboard(data);
+    setCachedWeather(trimmed, data);
+    if (data.current?.name) setCachedWeather(data.current.name, data);
     addToHistory(data.current?.name || trimmed);
     lsSet(STORAGE_CITY, data.current?.name || trimmed);
+    lsSet(STORAGE_LAST_DASHBOARD, data);
 
     // Pre-fill alert city if alert saved for this city
     if (el.regCity && !el.regCity.value) el.regCity.value = data.current?.name || trimmed;
@@ -517,11 +564,39 @@ async function fetchWeather(city) {
   }
 }
 
-async function fetchByCoords(lat, lon) {
+async function silentlyRevalidateWeather(city) {
+  try {
+    const res  = await fetch(`${API_BASE}/weather/dashboard?city=${encodeURIComponent(city)}`);
+    if (res.ok) {
+      const data = await res.json();
+      setCachedWeather(city, data);
+      if (data.current?.name) setCachedWeather(data.current.name, data);
+      lsSet(STORAGE_LAST_DASHBOARD, data);
+      if (currentCity && currentCity.toLowerCase() === city.toLowerCase()) {
+        renderDashboard(data);
+      }
+    }
+  } catch (_) {}
+}
+
+async function fetchByCoords(lat, lon, { silent = false } = {}) {
+  const coordsKey = `coords:${parseFloat(lat).toFixed(2)},${parseFloat(lon).toFixed(2)}`;
+
+  // Instant cache hit
+  const cached = getCachedWeather(coordsKey);
+  if (cached) {
+    renderDashboard(cached);
+    addToHistory(cached.current?.name || 'My Location');
+    lsSet(STORAGE_CITY, cached.current?.name || '');
+    lsSet(STORAGE_LAST_DASHBOARD, cached);
+    if (el.regCity && !el.regCity.value) el.regCity.value = cached.current?.name || '';
+    return;
+  }
+
   if (abortCtrl) abortCtrl.abort();
   abortCtrl = new AbortController();
   clearError();
-  showLoader('Locating you…');
+  if (!silent) showLoader('Locating you…');
 
   try {
     const res  = await fetch(`${API_BASE}/weather/dashboard?lat=${lat}&lon=${lon}`, { signal: abortCtrl.signal });
@@ -529,13 +604,112 @@ async function fetchByCoords(lat, lon) {
     if (!res.ok) throw new Error(data.error || 'Location weather failed.');
     hideLoader();
     renderDashboard(data);
+    setCachedWeather(coordsKey, data);
+    if (data.current?.name) setCachedWeather(data.current.name, data);
     addToHistory(data.current?.name || 'My Location');
     lsSet(STORAGE_CITY, data.current?.name || '');
+    lsSet(STORAGE_LAST_DASHBOARD, data);
     if (el.regCity && !el.regCity.value) el.regCity.value = data.current?.name || '';
   } catch (err) {
     if (err.name === 'AbortError') return;
     hideLoader();
     showError(err.message || 'Failed to get location weather.');
+  }
+}
+
+// ── Robust Geolocation & IP Fallback Engine ─────────────────────────────────────
+function queryPosition(opts) {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+  });
+}
+
+/**
+ * Robust device coordinate resolver:
+ * - 15-second timeout on initial attempt to allow user to view and click browser permission popup
+ * - enableHighAccuracy: false for instant Wi-Fi/network positioning on PC/laptop
+ * - Automatic single retry if initial query encounters temporary cold-start timeout or unavailable
+ * - Accurate error discrimination (only reporting access denied if code === 1)
+ */
+async function acquireDeviceCoordinates(onStatusUpdate = null) {
+  if (!navigator.geolocation) {
+    throw new Error('Geolocation is not supported by your browser.');
+  }
+
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const perm = await navigator.permissions.query({ name: 'geolocation' });
+      if (perm.state === 'prompt' && onStatusUpdate) {
+        onStatusUpdate('Please click "Allow" on the location prompt in your browser…');
+      }
+    } catch (_) {}
+  }
+
+  const primaryOpts = {
+    enableHighAccuracy: false,
+    timeout: 15000,
+    maximumAge: 300000,
+  };
+
+  try {
+    return await queryPosition(primaryOpts);
+  } catch (err) {
+    // If timed out or unavailable on first attempt (common on Windows cold starts), retry once
+    if (err.code === 3 /* TIMEOUT */ || err.code === 2 /* POSITION_UNAVAILABLE */) {
+      if (onStatusUpdate) onStatusUpdate('Locating you (retrying)…');
+      try {
+        return await queryPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: Infinity });
+      } catch (retryErr) {
+        err = retryErr;
+      }
+    }
+
+    if (err.code === 1 /* PERMISSION_DENIED */) {
+      const e = new Error('Location access denied. Please allow location in your browser settings or search manually.');
+      e.code = 'PERMISSION_DENIED';
+      throw e;
+    } else if (err.code === 3 /* TIMEOUT */) {
+      const e = new Error('Location request timed out. Please try again or search manually.');
+      e.code = 'TIMEOUT';
+      throw e;
+    } else {
+      const e = new Error('Location unavailable on your device.');
+      e.code = 'POSITION_UNAVAILABLE';
+      throw e;
+    }
+  }
+}
+
+/**
+ * Resolves current user location: tries device Geolocation first,
+ * and automatically falls back to IP-based location if device sensors fail.
+ */
+async function resolveCurrentLocation(onStatusUpdate = null) {
+  try {
+    const pos = await acquireDeviceCoordinates(onStatusUpdate);
+    return {
+      lat: pos.coords.latitude,
+      lon: pos.coords.longitude,
+      isFallback: false,
+    };
+  } catch (geoErr) {
+    // Attempt fast IP-based location fallback
+    if (onStatusUpdate) onStatusUpdate('Attempting network location fallback…');
+    try {
+      const res = await fetch(`${API_BASE}/weather/ip-location`);
+      const data = await res.json();
+      if (res.ok && data.success && data.lat && data.lon) {
+        return {
+          lat: data.lat,
+          lon: data.lon,
+          city: data.city || 'My Location',
+          isFallback: true,
+        };
+      }
+    } catch (_) {}
+
+    // If IP fallback also failed, re-throw the original geolocation error
+    throw geoErr;
   }
 }
 
@@ -545,15 +719,28 @@ el.cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchWeat
 el.cityInput.addEventListener('input', debounce(() => {
   const v = el.cityInput.value.trim();
   if (v.length >= 3) fetchWeather(v);
-}, 600));
+}, 350));
 
-el.locationBtn.addEventListener('click', () => {
-  if (!navigator.geolocation) { showError('Geolocation is not supported by your browser.'); return; }
-  navigator.geolocation.getCurrentPosition(
-    pos => fetchByCoords(pos.coords.latitude, pos.coords.longitude),
-    err => showError('Location access denied. Please search manually.'),
-    { timeout: 8000, maximumAge: 60000 }
-  );
+el.locationBtn.addEventListener('click', async () => {
+  if (el.locationBtn.classList.contains('loading')) return;
+  el.locationBtn.classList.add('loading');
+  const originalText = el.locationBtn.textContent;
+  el.locationBtn.textContent = '📍 Locating…';
+  clearError();
+  showLoader('Detecting your location…');
+
+  try {
+    const loc = await resolveCurrentLocation(statusMsg => {
+      showLoader(statusMsg);
+    });
+    await fetchByCoords(loc.lat, loc.lon);
+  } catch (err) {
+    hideLoader();
+    showError(err.message || 'Failed to detect location. Please search manually.');
+  } finally {
+    el.locationBtn.classList.remove('loading');
+    el.locationBtn.textContent = originalText;
+  }
 });
 
 // ── Alert modal ────────────────────────────────────────────────────────────────
@@ -624,47 +811,44 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 // ── Alert modal — Fetch Location for City field ────────────────────────────
 if (el.alertLocationBtn) {
-  el.alertLocationBtn.addEventListener('click', () => {
-    if (!navigator.geolocation) {
-      showModalMsg('Geolocation is not supported by your browser.', 'error');
-      return;
-    }
+  el.alertLocationBtn.addEventListener('click', async () => {
+    if (el.alertLocationBtn.classList.contains('loading')) return;
     el.alertLocationBtn.classList.add('loading');
     el.alertLocationBtn.title = 'Detecting location…';
-    navigator.geolocation.getCurrentPosition(
-      async pos => {
-        try {
-          const { latitude: lat, longitude: lon } = pos.coords;
-          // Use backend weather endpoint to reverse-geocode coordinates to city
-          const res  = await fetch(`${API_BASE}/weather/dashboard?lat=${lat}&lon=${lon}`);
-          const data = await res.json();
-          if (res.ok && data.current) {
-            const city = data.current.name || data.current.city || '';
-            if (city) {
-              el.regCity.value = city;
-              el.regCity.focus();
-              // Also load weather if not already shown
-              if (!currentCity) fetchByCoords(lat, lon);
-            } else {
-              showModalMsg('Could not resolve city from location.', 'error');
-            }
+    clearModalMsg();
+
+    try {
+      const loc = await resolveCurrentLocation(msg => {
+        el.alertLocationBtn.title = msg;
+      });
+
+      // Use backend weather endpoint to reverse-geocode coordinates to city
+      const res  = await fetch(`${API_BASE}/weather/dashboard?lat=${loc.lat}&lon=${loc.lon}`);
+      const data = await res.json();
+      if (res.ok && data.current) {
+        const city = data.current.name || data.current.city || loc.city || '';
+        if (city) {
+          el.regCity.value = city;
+          el.regCity.focus();
+          if (loc.isFallback) {
+            showModalMsg(`📍 Set city to ${city} (via network location).`, 'success');
           } else {
-            showModalMsg(data.error || 'Could not resolve city.', 'error');
+            showModalMsg(`📍 Detected location: ${city}`, 'success');
           }
-        } catch (err) {
-          showModalMsg('Location lookup failed. Try again.', 'error');
-        } finally {
-          el.alertLocationBtn.classList.remove('loading');
-          el.alertLocationBtn.title = 'Use my current location to fill city';
+          // Also load weather if not already shown
+          if (!currentCity) fetchByCoords(loc.lat, loc.lon);
+        } else {
+          showModalMsg('Could not resolve city from location.', 'error');
         }
-      },
-      err => {
-        el.alertLocationBtn.classList.remove('loading');
-        el.alertLocationBtn.title = 'Use my current location to fill city';
-        showModalMsg('Location access denied. Please enter city manually.', 'error');
-      },
-      { timeout: 8000, maximumAge: 60000 }
-    );
+      } else {
+        showModalMsg(data.error || 'Could not resolve city.', 'error');
+      }
+    } catch (err) {
+      showModalMsg(err.message || 'Location lookup failed. Please enter city manually.', 'error');
+    } finally {
+      el.alertLocationBtn.classList.remove('loading');
+      el.alertLocationBtn.title = 'Use my current location to fill city';
+    }
   });
 }
 
@@ -818,5 +1002,16 @@ el.sendTestEmailBtn.addEventListener('click', async () => {
 
   const lastCity = lsGet(STORAGE_CITY, '') || 'London';
   el.cityInput.value = lastCity;
-  fetchWeather(lastCity);
+
+  // Instant SWR: Immediately render last dashboard from storage in 0 ms!
+  const cachedDashboard = lsGet(STORAGE_LAST_DASHBOARD);
+  if (cachedDashboard && cachedDashboard.current) {
+    renderDashboard(cachedDashboard);
+    setCachedWeather(cachedDashboard.current.name || lastCity, cachedDashboard);
+    // Background silent revalidation without disruptive spinners
+    fetchWeather(lastCity, { silent: true });
+  } else {
+    // First-time visit cold load
+    fetchWeather(lastCity);
+  }
 })();

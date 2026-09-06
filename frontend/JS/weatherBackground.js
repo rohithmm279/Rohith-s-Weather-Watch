@@ -1002,11 +1002,14 @@
     // 4. Cloud Layer
     if (scene.clouds) {
       updateClouds(scene.clouds, W, H);
-      const sorted = scene.clouds.slice().sort((a, b) => {
+      if (!scene._cloudsSorted) {
         const order = { far: 0, mid: 1, near: 2 };
-        return order[a.layer] - order[b.layer];
-      });
-      sorted.forEach((c) => drawCloud(ctx, c, scene.isNight, scene.type, alpha));
+        scene.clouds.sort((a, b) => (order[a.layer] || 0) - (order[b.layer] || 0));
+        scene._cloudsSorted = true;
+      }
+      for (let i = 0; i < scene.clouds.length; i++) {
+        drawCloud(ctx, scene.clouds[i], scene.isNight, scene.type, alpha);
+      }
     }
 
     // 5. Particle Layer
