@@ -65,6 +65,16 @@ app.post('/api/admin/trigger-monitor', (_req, res) => {
  */
 async function handleTestEmail(req, res) {
   const { email, city, name } = req.body || {};
+  let dashboardUrl = req.body?.dashboardUrl;
+  if (!dashboardUrl) {
+    const origin = req.get('origin') || req.get('referer');
+    if (origin) {
+      try {
+        const parsed = new URL(origin);
+        dashboardUrl = parsed.origin;
+      } catch (_) {}
+    }
+  }
   const cfg = getEmailConfig();
   const to  = (email || cfg.defaultRecipient || cfg.senderEmail || '').trim();
 
@@ -82,7 +92,7 @@ async function handleTestEmail(req, res) {
   }
 
   try {
-    const result = await sendTestWeatherAlertEmail({ email: to, city, name });
+    const result = await sendTestWeatherAlertEmail({ email: to, city, name, dashboardUrl });
     if (!result.success) {
       return res.status(502).json({ success: false, error: result.error || 'Brevo dispatch failed.' });
     }

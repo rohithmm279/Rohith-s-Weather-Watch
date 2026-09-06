@@ -788,7 +788,12 @@ el.sendTestEmailBtn.addEventListener('click', async () => {
     const res  = await fetch(`${API_BASE}/alerts/test-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, city, name }),
+      body: JSON.stringify({
+        email,
+        city,
+        name,
+        dashboardUrl: window.location.origin,
+      }),
     });
     const data = await res.json();
 

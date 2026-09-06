@@ -21,6 +21,7 @@ function getEmailConfig() {
     senderName: (process.env.BREVO_SENDER_NAME || "Rohith's Weather Watch").trim(),
     defaultRecipient: (process.env.ALERT_RECIPIENT_EMAIL || '').trim(),
     cooldownMinutes: parseInt(process.env.ALERT_COOLDOWN_MINUTES, 10) || 180,
+    dashboardUrl: (process.env.DASHBOARD_URL || process.env.RENDER_EXTERNAL_URL || 'https://rohiths-weather-watch.onrender.com').trim(),
   };
 }
 
@@ -206,9 +207,12 @@ function buildAlertEmailHtml({
     ? `${Math.round(weatherData.humidity)}%`
     : '80%';
 
-  const targetDashboardUrl = dashboardUrl
+  const targetDashboardUrl = (
+    dashboardUrl
     || process.env.DASHBOARD_URL
-    || `http://localhost:${process.env.PORT || 3000}`;
+    || process.env.RENDER_EXTERNAL_URL
+    || 'https://rohiths-weather-watch.onrender.com'
+  ).trim();
 
   // Priority indicator
   const isSevere = risks.length === 0 || risks.some(r => (r.severity || '').toLowerCase() === 'severe');
@@ -489,6 +493,7 @@ async function sendWeatherAlertEmail({
   risks = [],
   weatherData = {},
   force = false,
+  dashboardUrl,
 }) {
   const config = getEmailConfig();
   const to = (recipientEmail || config.defaultRecipient || '').trim();
@@ -540,6 +545,7 @@ async function sendWeatherAlertEmail({
     risks: activeRisksToSend,
     weatherData,
     recipientName,
+    dashboardUrl,
   });
 
   const result = await sendBrevoEmail({
@@ -568,7 +574,7 @@ async function sendWeatherAlertEmail({
  * @param {string} [options.name]  - Optional test recipient username
  * @returns {Promise<Object>}
  */
-async function sendTestWeatherAlertEmail({ email, city = 'Nepal', name } = {}) {
+async function sendTestWeatherAlertEmail({ email, city = 'Nepal', name, dashboardUrl } = {}) {
   const config = getEmailConfig();
   const targetEmail = (email || config.defaultRecipient || config.senderEmail).trim();
   const targetName  = (name && name.trim()) ? name.trim() : 'User';
@@ -600,6 +606,7 @@ async function sendTestWeatherAlertEmail({ email, city = 'Nepal', name } = {}) {
     risks: mockRisks,
     weatherData: mockWeatherData,
     force: true, // bypass cooldown for testing
+    dashboardUrl,
   });
 }
 
