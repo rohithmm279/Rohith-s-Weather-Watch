@@ -1,4 +1,5 @@
-# 🌤 WeatherWatch — 24/7 Automated Weather Monitoring System
+#<img width="1024" height="1024" alt="image" src="https://github.com/user-attachments/assets/325411b7-6b19-4b96-b505-f220bf57efb0" />
+Rohith's WeatherWatch — 24/7 Automated Weather Monitoring System
 
 > **Register once. Close the page. Get alerted via email when dangerous weather approaches your city.**
 
