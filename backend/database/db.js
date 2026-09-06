@@ -99,4 +99,39 @@ try {
   try { db.exec('PRAGMA foreign_keys = ON'); } catch (_) {}
 }
 
+// ---------------------------------------------------------------------------
+// System Settings Table (key-value store for app state e.g. pause/resume)
+// ---------------------------------------------------------------------------
+db.exec(`
+  CREATE TABLE IF NOT EXISTS system_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+db.getSetting = function (key, defaultValue = null) {
+  try {
+    const row = db.prepare('SELECT value FROM system_settings WHERE key = ?').get(key);
+    return row ? row.value : defaultValue;
+  } catch (err) {
+    console.error(`[DB] Failed to get setting "${key}":`, err.message);
+    return defaultValue;
+  }
+};
+
+db.setSetting = function (key, value) {
+  try {
+    db.prepare(`
+      INSERT OR REPLACE INTO system_settings (key, value, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).run(key, String(value));
+    return true;
+  } catch (err) {
+    console.error(`[DB] Failed to set setting "${key}":`, err.message);
+    return false;
+  }
+};
+
 module.exports = db;
+

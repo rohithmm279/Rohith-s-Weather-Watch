@@ -444,6 +444,26 @@ node backend/dbAdmin.js "SELECT * FROM alert_history ORDER BY alerted_at DESC LI
 node backend/dbAdmin.js reset
 ```
 
+### 🔕 Alert System Admin CLI (Pause / Resume)
+
+WeatherWatch includes an admin terminal command ([backend/alertAdmin.js](backend/alertAdmin.js)) to pause and resume the automated backend alert system at any time:
+
+```bash
+# Pause the alert system (disables scheduled detection & emails indefinitely)
+npm run alerts pause
+# or: node backend/alertAdmin.js pause
+
+# Resume the alert system (re-enables scheduled weather detection & emails)
+npm run alerts resume
+# or: node backend/alertAdmin.js resume
+
+# Check the current alert system status (ACTIVE or PAUSED)
+npm run alerts status
+# or: node backend/alertAdmin.js status
+```
+
+> **Note:** The pause state is saved persistently in the SQLite database, meaning the system will remain paused even across backend restarts until explicitly resumed.
+
 ---
 
 ## ⚙️ Quick Start & Installation

@@ -9,7 +9,7 @@ const app         = express();
 
 const weatherRoutes = require('./routes/weather');
 const userRoutes    = require('./routes/users');
-const { startScheduler, runMonitoringCycle } = require('./scheduler/monitorJob');
+const { startScheduler, runMonitoringCycle, isAlertSystemPaused } = require('./scheduler/monitorJob');
 const {
   sendTestWeatherAlertEmail,
   isEmailConfigured,
@@ -54,8 +54,10 @@ app.use('/api/users',   userRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
+  const paused = isAlertSystemPaused();
   res.json({
     status:                   'ok',
+    alertSystemStatus:        paused ? 'paused' : 'active',
     apiKeyConfigured:         Boolean(process.env.WEATHER_API_KEY?.trim()),
     emailConfigured:          isEmailConfigured(),
     emailSender:              process.env.BREVO_SENDER_EMAIL || null,
@@ -65,10 +67,21 @@ app.get('/api/health', (_req, res) => {
 });
 
 // Manual monitoring cycle trigger (admin / demo)
-app.post('/api/admin/trigger-monitor', (_req, res) => {
+app.post('/api/admin/trigger-monitor', (req, res) => {
+  const isPaused = isAlertSystemPaused();
+  const force = req.query.force === 'true' || req.body?.force === true;
+
+  if (isPaused && !force) {
+    console.log('\n[Admin] Manual monitoring cycle requested, but alert system is PAUSED.');
+    return res.json({
+      status: 'paused',
+      message: 'Alert system is currently PAUSED by admin. Cycle skipped. Run "npm run alerts resume" or send { force: true } to override.',
+    });
+  }
+
   console.log('\n[Admin] Manual monitoring cycle triggered.');
   res.json({ message: 'Monitoring cycle started. Watch the console for results.' });
-  setImmediate(() => runMonitoringCycle().catch(err => console.error('[Admin] Monitor error:', err.message)));
+  setImmediate(() => runMonitoringCycle({ force }).catch(err => console.error('[Admin] Monitor error:', err.message)));
 });
 
 /**

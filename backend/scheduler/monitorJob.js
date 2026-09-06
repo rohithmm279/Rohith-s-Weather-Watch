@@ -48,7 +48,15 @@ const PREF_COL = {
 // ---------------------------------------------------------------------------
 // Core monitoring cycle
 // ---------------------------------------------------------------------------
-async function runMonitoringCycle() {
+async function runMonitoringCycle(options = {}) {
+  // Check if admin has paused the alert system
+  const status = db.getSetting ? db.getSetting('alert_system_status', 'active') : 'active';
+  if (status === 'paused' && !options.force) {
+    console.log(`\n[Monitor] ⏸️ Alert system is PAUSED by admin — cycle skipped at ${new Date().toISOString()}.`);
+    console.log(`[Monitor] (Run 'npm run alerts resume' to re-enable automated alerts)\n`);
+    return { skipped: true, reason: 'paused' };
+  }
+
   console.log(`\n[Monitor] ═══ Cycle started at ${new Date().toISOString()} ═══`);
 
   const cities = stmts.uniqueCities.all();
@@ -187,6 +195,9 @@ async function processUser(user, city, city_normalized, risks, cooldownMs, weath
 // Scheduler
 // ---------------------------------------------------------------------------
 function startScheduler() {
+  const currentStatus = db.getSetting ? db.getSetting('alert_system_status', 'active') : 'active';
+  const statusLabel = currentStatus === 'paused' ? '⏸️ PAUSED (alerts silenced)' : '▶️ ACTIVE';
+
   const interval = Math.max(1, parseInt(process.env.WEATHER_CHECK_INTERVAL, 10) || 30);
   const cronExpr = interval === 1 ? '* * * * *' : `*/${interval} * * * *`;
 
@@ -196,8 +207,13 @@ function startScheduler() {
     return;
   }
 
-  console.log(`[Scheduler] Monitoring every ${interval} minute(s) [${cronExpr}].`);
+  console.log(`[Scheduler] Monitoring every ${interval} minute(s) [${cronExpr}] — Status: ${statusLabel}.`);
   cron.schedule(cronExpr, () => runMonitoringCycle().catch(console.error));
 }
 
-module.exports = { startScheduler, runMonitoringCycle };
+function isAlertSystemPaused() {
+  const status = db.getSetting ? db.getSetting('alert_system_status', 'active') : 'active';
+  return status === 'paused';
+}
+
+module.exports = { startScheduler, runMonitoringCycle, isAlertSystemPaused };
