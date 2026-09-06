@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeatherWatch — Real-Time Weather Dashboard</title>
+  <meta name="description" content="Real-time weather dashboard with hourly and 5-day forecasts, cinematic weather environments, and instant Brevo email alerts." />
+
+  <link rel="dns-prefetch" href="https://openweathermap.org" />
+  <link rel="preconnect" href="https://openweathermap.org" crossorigin />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="main.css?v=4" />
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header-row">
+      <div class="brand">
+        <span class="brand-icon">🌤</span>
+        <span class="brand-name">WeatherWatch</span>
+      </div>
+      <button id="alertModalBtn" class="alert-btn" title="Enable Weather Email Alerts">🔔 Alerts</button>
+    </div>
+
+    <!-- Error Banner -->
+    <div id="errorMessage" class="error-banner" role="alert"></div>
+
+    <!-- Search -->
+    <div class="search-box">
+      <input type="text" id="cityInput" placeholder="Search city…" autocomplete="off" spellcheck="false" aria-label="City name" />
+      <button id="searchBtn" aria-label="Search weather">Search</button>
+      <button id="locationBtn" aria-label="Use my location">📍 My Location</button>
+    </div>
+
+    <!-- Recent Searches -->
+    <div class="recent-pills-bar" id="historyBox" style="display:none;">
+      <span class="recents-tag">Recent:</span>
+      <div class="recents-list" id="historyList"></div>
+      <button id="clearHistory" class="recents-clear-btn" title="Clear history">Clear</button>
+    </div>
+
+    <!-- Loader -->
+    <div class="loader-row" id="loaderRow">
+      <div class="loader" id="loader"></div>
+      <span class="load-status" id="loadStatus"></span>
+    </div>
+
+    <!-- Bento Grid Dashboard -->
+    <div class="weather-box bento-grid active" id="weather">
+
+      <div class="bento-top-row">
+        <!-- Current Weather -->
+        <div class="bento-card bento-current" id="currentWeatherCard">
+          <div class="wx-current-header">
+            <div>
+              <h2 id="cityName">Loading weather…</h2>
+              <div id="currentDateTime" class="wx-date-time">Updating…</div>
+            </div>
+            <div id="riskBadge" class="risk-badge risk-none" aria-live="polite">✓ Clear</div>
+          </div>
+          <div class="wx-current-main">
+            <img id="icon" src="https://openweathermap.org/img/wn/02d@2x.png" alt="Weather icon" class="wx-current-icon" width="90" height="90" decoding="async" />
+            <div class="wx-current-temp-block">
+              <div id="temp" class="wx-temp">--°C</div>
+              <div id="desc" class="wx-desc">Fetching forecast…</div>
+              <div id="feelsLikeText" class="wx-feels-text">Connecting to weather service</div>
+            </div>
+          </div>
+          <div class="wx-current-divider"></div>
+        </div>
+
+        <!-- Hourly Forecast -->
+        <div class="bento-card bento-hourly">
+          <div class="wx-card-header">
+            <h4>Hourly Forecast</h4>
+            <span class="wx-sub-badge">Next 24 h</span>
+          </div>
+          <div id="hourlyStrip" class="wx-hourly-strip" role="list" aria-label="Hourly forecast"></div>
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="bento-metrics-row">
+        <div class="bento-tile">
+          <div class="wx-tile-icon" aria-hidden="true">💨</div>
+          <div class="wx-tile-info">
+            <span class="wx-tile-label">Wind</span>
+            <span id="wm-wind" class="wx-tile-val">--</span>
+            <span id="wm-wind-sub" class="wx-tile-sub">--</span>
+          </div>
+        </div>
+        <div class="bento-tile">
+          <div class="wx-tile-icon" aria-hidden="true">💧</div>
+          <div class="wx-tile-info">
+            <span class="wx-tile-label">Humidity</span>
+            <span id="wm-humidity" class="wx-tile-val">--</span>
+            <span id="wm-dew" class="wx-tile-sub">Dew --</span>
+          </div>
+        </div>
+        <div class="bento-tile">
+          <div class="wx-tile-icon" aria-hidden="true">☀️</div>
+          <div class="wx-tile-info">
+            <span class="wx-tile-label">UV Index</span>
+            <span id="wm-uv" class="wx-tile-val">--</span>
+            <span id="wm-uv-sub" class="wx-tile-sub">--</span>
+          </div>
+        </div>
+        <div class="bento-tile">
+          <div class="wx-tile-icon" aria-hidden="true">🌡</div>
+          <div class="wx-tile-info">
+            <span class="wx-tile-label">Pressure</span>
+            <span id="wm-pressure" class="wx-tile-val">--</span>
+            <span id="wm-pressure-sub" class="wx-tile-sub">hPa</span>
+          </div>
+        </div>
+        <div class="bento-tile">
+          <div class="wx-tile-icon" aria-hidden="true">👁</div>
+          <div class="wx-tile-info">
+            <span class="wx-tile-label">Visibility</span>
+            <span id="wm-visibility" class="wx-tile-val">--</span>
+            <span id="wm-vis-sub" class="wx-tile-sub">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5-Day Forecast -->
+      <div class="bento-card bento-daily">
+        <div class="wx-card-header">
+          <h4>5-Day Forecast</h4>
+          <span class="wx-sub-badge">Daily Outlook</span>
+        </div>
+        <div id="dailyList" class="wx-daily-grid" role="list" aria-label="5-day forecast"></div>
+      </div>
+
+    </div><!-- /#weather -->
+
+  </div><!-- /.container -->
+
+  <!-- Alert Modal -->
+  <div id="alertModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">🔔 Rohith's Weather Watch</h3>
+        <button id="closeModalBtn" class="close-btn" aria-label="Close">&times;</button>
+      </div>
+      <p class="modal-sub">Receive real-time email alerts via Brevo when severe weather is predicted for your city.</p>
+
+      <form id="alertForm">
+        <input type="text"  id="regName"  placeholder="Your Name" required autocomplete="name" />
+        <input type="email" id="regEmail" placeholder="Your Email (e.g. name@example.com)" required autocomplete="email" />
+        <input type="text"  id="regCity"  placeholder="City to Monitor" required autocomplete="address-level2" />
+
+        <div class="pref-options">
+          <label><input type="checkbox" name="pref" value="rain"    checked /> Rain / Heavy Rain</label>
+          <label><input type="checkbox" name="pref" value="heat"    checked /> High Temperature</label>
+          <label><input type="checkbox" name="pref" value="wind"    checked /> Strong Wind</label>
+          <label><input type="checkbox" name="pref" value="thunder" checked /> Thunderstorm</label>
+        </div>
+
+        <!-- Snooze Section -->
+        <div class="snooze-row" id="snoozeRow">
+          <div class="snooze-header">
+            <span class="snooze-label">🔕 Snooze Alerts</span>
+            <span id="snoozeActiveBadge" class="snooze-active-badge" style="display:none">Active</span>
+          </div>
+          <select id="snoozeDuration" class="snooze-select">
+            <option value="">— Off (alerts active) —</option>
+            <option value="1">For 1 hour</option>
+            <option value="4">For 4 hours</option>
+            <option value="8">For 8 hours</option>
+            <option value="24">Until tomorrow (24 h)</option>
+            <option value="custom">Custom date &amp; time…</option>
+          </select>
+          <input type="datetime-local" id="snoozeCustom" class="snooze-custom-input" style="display:none" />
+          <div id="snoozeStatus" class="snooze-status"></div>
+        </div>
+
+        <div id="modalMsg" class="modal-msg"></div>
+
+        <button type="submit" id="saveAlertBtn">Save Alert Preferences</button>
+        <button type="button" id="sendTestEmailBtn" class="test-email-btn" title="Send a test weather alert email via Brevo">✉️ Send Test Alert Email</button>
+        <button type="button" id="deleteUserBtn" class="delete-user-btn" title="Remove alert subscription and clear saved details">🗑️ Unsubscribe &amp; Clear My Data</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="JS/weatherBackground.js?v=3" defer></script>
+  <script src="JS/main.js?v=4" defer></script>
+</body>
+</html>
